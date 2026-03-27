@@ -1610,7 +1610,7 @@ export default function HomePage() {
         if (targetGroupId === 'fav') {
           setFavorites(prev => {
             const next = new Set(prev);
-            codes.forEach(code => next.add(code));
+            codes.map(normalizeCode).filter(Boolean).forEach(code => next.add(code));
             storageHelper.setItem('favorites', JSON.stringify(Array.from(next)));
             return next;
           });
@@ -2181,10 +2181,15 @@ export default function HomePage() {
       }
       // 加载估值分时记录（用于分时图）
       setValuationSeries(getAllValuationSeries());
-      // 加载自选状态
+      // 加载自选状态：只保留存在于 funds 中的 code，避免“自选数量 > 全部数量”
       const savedFavorites = JSON.parse(localStorage.getItem('favorites') || '[]');
-      if (Array.isArray(savedFavorites)) {
-        setFavorites(new Set(savedFavorites));
+      const storedFundsRaw = JSON.parse(localStorage.getItem('funds') || '[]');
+      const storedFunds = Array.isArray(storedFundsRaw) ? dedupeByCode(storedFundsRaw) : [];
+      const storedFundCodeSet = new Set(storedFunds.map((f) => f?.code).filter(Boolean));
+      const cleanedFavorites = cleanCodeArray(savedFavorites, storedFundCodeSet);
+      setFavorites(new Set(cleanedFavorites));
+      if (Array.isArray(savedFavorites) && cleanedFavorites.length !== savedFavorites.length) {
+        storageHelper.setItem('favorites', JSON.stringify(cleanedFavorites));
       }
       // 加载待处理交易
       const savedPending = JSON.parse(localStorage.getItem('pendingTrades') || '[]');
@@ -2916,7 +2921,24 @@ export default function HomePage() {
   const importFileRef = useRef(null);
   const [importMsg, setImportMsg] = useState('');
 
-  const normalizeCode = (value) => String(value || '').trim();
+  function normalizeCode(value) {
+    return String(value ?? '').trim();
+  }
+
+  function cleanCodeArray(input, allowedSet = null) {
+    const arr = Array.isArray(input) ? input : [];
+    const next = [];
+    const seen = new Set();
+    for (const v of arr) {
+      const code = normalizeCode(v);
+      if (!code) continue;
+      if (allowedSet && !allowedSet.has(code)) continue;
+      if (seen.has(code)) continue;
+      seen.add(code);
+      next.push(code);
+    }
+    return next;
+  }
   const normalizeNumber = (value) => {
     if (value === null || value === undefined || value === '') return null;
     const num = Number(value);
@@ -3218,7 +3240,8 @@ export default function HomePage() {
       storageHelper.setItem('funds', JSON.stringify(nextFunds));
       const nextFundCodes = new Set(nextFunds.map((f) => f.code));
 
-      const nextFavorites = Array.isArray(cloudData.favorites) ? cloudData.favorites : [];
+      // favorites 必须是字符串 code，且必须存在于 funds 中
+      const nextFavorites = cleanCodeArray(cloudData.favorites, nextFundCodes);
       setFavorites(new Set(nextFavorites));
       storageHelper.setItem('favorites', JSON.stringify(nextFavorites));
 
@@ -3486,7 +3509,8 @@ export default function HomePage() {
         }
 
         if (Array.isArray(data.favorites)) {
-          const mergedFav = Array.from(new Set([...currentFavorites, ...data.favorites]));
+          const fundCodeSet = new Set(mergedFunds.map((f) => f?.code).filter(Boolean));
+          const mergedFav = cleanCodeArray([...currentFavorites, ...data.favorites], fundCodeSet);
           setFavorites(new Set(mergedFav));
           storageHelper.setItem('favorites', JSON.stringify(mergedFav));
         }
