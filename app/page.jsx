@@ -1418,6 +1418,82 @@ export default function HomePage() {
     showToast('交易记录已删除', 'success');
   };
 
+  const handleMergeAllGroupTransactionsToCurrent = (fundCode) => {
+    const targetGid = activeGroupId;
+    if (!fundCode || !targetGid) return;
+
+    // 复制“历史交易记录”到当前分组（不改变原记录）
+    setTransactions((prev) => {
+      const list = prev?.[fundCode] || [];
+      if (!Array.isArray(list) || list.length === 0) return prev;
+
+      const existingCurrent = list.filter((t) => t && t.groupId === targetGid);
+      const copiedKey = new Set(
+        existingCurrent
+          .filter((t) => t?.copiedFromId)
+          .map((t) => `${t.copiedFromId}|${t.copiedFromGroupId ?? ''}`)
+      );
+
+      const toCopy = list.filter((t) => {
+        if (!t) return false;
+        const fromGid = t.groupId ?? null;
+        if (fromGid === targetGid) return false;
+        const key = `${t.id}|${fromGid ?? ''}`;
+        return !copiedKey.has(key);
+      });
+
+      if (toCopy.length === 0) return prev;
+
+      const copied = toCopy.map((t) => ({
+        ...t,
+        id: uuidv4(),
+        groupId: targetGid,
+        copiedFromId: t.id,
+        copiedFromGroupId: t.groupId ?? null,
+      }));
+
+      const nextList = [...list, ...copied].sort((a, b) => (b?.timestamp || 0) - (a?.timestamp || 0));
+      const nextState = { ...prev, [fundCode]: nextList };
+      storageHelper.setItem('transactions', JSON.stringify(nextState));
+      return nextState;
+    });
+
+    // 复制“待处理队列”到当前分组（不改变原记录）
+    setPendingTrades((prev) => {
+      const list = Array.isArray(prev) ? prev : [];
+      const existingCurrent = list.filter((t) => t && t.fundCode === fundCode && t.groupId === targetGid);
+      const copiedKey = new Set(
+        existingCurrent
+          .filter((t) => t?.copiedFromId)
+          .map((t) => `${t.copiedFromId}|${t.copiedFromGroupId ?? ''}`)
+      );
+
+      const toCopy = list.filter((t) => {
+        if (!t || t.fundCode !== fundCode) return false;
+        const fromGid = t.groupId ?? null;
+        if (fromGid === targetGid) return false;
+        const key = `${t.id}|${fromGid ?? ''}`;
+        return !copiedKey.has(key);
+      });
+
+      if (toCopy.length === 0) return prev;
+
+      const copied = toCopy.map((t) => ({
+        ...t,
+        id: uuidv4(),
+        groupId: targetGid,
+        copiedFromId: t.id,
+        copiedFromGroupId: t.groupId ?? null,
+      }));
+
+      const next = [...list, ...copied];
+      storageHelper.setItem('pendingTrades', JSON.stringify(next));
+      return next;
+    });
+
+    showToast('已从全部分组复制该基金交易记录到当前分组', 'success');
+  };
+
   const handleAddHistory = (data) => {
     const fundCode = data.fundCode;
     // 添加历史记录仅作补录展示，不修改真实持仓金额与份额
@@ -6449,6 +6525,8 @@ export default function HomePage() {
             onClose={() => setHistoryModal({ open: false, fund: null })}
             onDeleteTransaction={(id) => handleDeleteTransaction(historyModal.fund?.code, id)}
             onAddHistory={() => setAddHistoryModal({ open: true, fund: historyModal.fund })}
+            canMergeAllGroups={!!activeGroupId}
+            onMergeAllGroups={() => handleMergeAllGroupTransactionsToCurrent(historyModal.fund?.code)}
             onDeletePending={(id) => {
                 setPendingTrades(prev => {
                     const next = prev.filter(t => t.id !== id);
