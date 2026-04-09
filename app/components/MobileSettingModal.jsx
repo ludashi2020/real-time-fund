@@ -54,7 +54,7 @@ function MobileSettingReorderItem({
         mass: 1,
         layout: { duration: 0.2 },
       }}
-      style={{ touchAction: 'none' }}
+      style={{ touchAction: 'pan-y' }}
       dragListener={false}
       dragControls={dragControls}
     >
@@ -221,7 +221,7 @@ export default function MobileSettingModal({
                 onReorder={handleReorder}
                 className="mobile-setting-list"
                 layoutScroll
-                style={{ touchAction: 'none' }}
+                style={{ touchAction: 'pan-y' }}
               >
                 <AnimatePresence mode="popLayout">
                   {columns.map((item, index) => (
