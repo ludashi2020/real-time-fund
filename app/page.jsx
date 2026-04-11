@@ -6590,7 +6590,7 @@ export default function HomePage() {
                 ? null
                 : (fundDeleteConfirm.otherGroups && fundDeleteConfirm.otherGroups.length > 0
                   ? <>
-                      基金 &#34{fundDeleteConfirm.name}&#34; 还存在于以下分组：
+                      基金 &#34;{fundDeleteConfirm.name}&#34; 还存在于以下分组：
                       <span className="text-[var(--primary)] font-semibold">
                         {fundDeleteConfirm.otherGroups.join('、')}
                       </span>
