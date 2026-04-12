@@ -30,8 +30,9 @@ WORKDIR /usr/share/nginx/html
 COPY --from=builder /app/out .
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY entrypoint.sh /entrypoint.sh
-COPY .env.production /etc/nginx/html/.env.production
+RUN chmod +x /entrypoint.sh
 
 EXPOSE 3000
-
+HEALTHCHECK --interval=30s --timeout=5s --retries=3 \
+  CMD curl -f http://localhost:3000/ || exit 1
 ENTRYPOINT ["/entrypoint.sh"]
