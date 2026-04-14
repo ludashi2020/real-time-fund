@@ -1435,11 +1435,9 @@ export default function MobileFundTable({
             ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
             : '—';
           return (
-            <div style={{ textAlign: 'right' }}>
-              <FitText className={cls} style={{ fontWeight: 700 }} maxFontSize={14} minFontSize={10} as="div">
+              <FitText className={cls} style={{ fontWeight: 700, textAlign: 'right' }} maxFontSize={14} minFontSize={10} as="div">
                 {text}
               </FitText>
-            </div>
           );
         },
         meta: { align: 'right', cellClassName: 'period-return-cell', width: columnWidthMap.period1w ?? 72 },
@@ -1456,11 +1454,9 @@ export default function MobileFundTable({
             ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
             : '—';
           return (
-            <div style={{ textAlign: 'right' }}>
-              <FitText className={cls} style={{ fontWeight: 700 }} maxFontSize={14} minFontSize={10} as="div">
+              <FitText className={cls} style={{ fontWeight: 700, textAlign: 'right' }} maxFontSize={14} minFontSize={10} as="div">
                 {text}
               </FitText>
-            </div>
           );
         },
         meta: { align: 'right', cellClassName: 'period-return-cell', width: columnWidthMap.period1m ?? 72 },
@@ -1477,11 +1473,9 @@ export default function MobileFundTable({
             ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
             : '—';
           return (
-            <div style={{ textAlign: 'right' }}>
-              <FitText className={cls} style={{ fontWeight: 700 }} maxFontSize={14} minFontSize={10} as="div">
+              <FitText className={cls} style={{ fontWeight: 700, textAlign: 'right' }} maxFontSize={14} minFontSize={10} as="div">
                 {text}
               </FitText>
-            </div>
           );
         },
         meta: { align: 'right', cellClassName: 'period-return-cell', width: columnWidthMap.period3m ?? 72 },
@@ -1498,11 +1492,9 @@ export default function MobileFundTable({
             ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
             : '—';
           return (
-            <div style={{ textAlign: 'right' }}>
-              <FitText className={cls} style={{ fontWeight: 700 }} maxFontSize={14} minFontSize={10} as="div">
+              <FitText className={cls} style={{ fontWeight: 700, textAlign: 'right' }} maxFontSize={14} minFontSize={10} as="div">
                 {text}
               </FitText>
-            </div>
           );
         },
         meta: { align: 'right', cellClassName: 'period-return-cell', width: columnWidthMap.period6m ?? 72 },
@@ -1519,11 +1511,9 @@ export default function MobileFundTable({
             ? `${value > 0 ? '+' : ''}${value.toFixed(2)}%`
             : '—';
           return (
-            <div style={{ textAlign: 'right' }}>
-              <FitText className={cls} style={{ fontWeight: 700 }} maxFontSize={14} minFontSize={10} as="div">
+              <FitText className={cls} style={{ fontWeight: 700, textAlign: 'right' }} maxFontSize={14} minFontSize={10} as="div">
                 {text}
               </FitText>
-            </div>
           );
         },
         meta: { align: 'right', cellClassName: 'period-return-cell', width: columnWidthMap.period1y ?? 72 },
