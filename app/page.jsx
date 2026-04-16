@@ -2614,7 +2614,6 @@ export default function HomePage() {
       const fields = Array.from(new Set([
         'jzrq',
         'dwjz',
-        'gsz',
         ...(Array.isArray(extraFields) ? extraFields : [])
       ]));
       const items = list.map((item) => {
@@ -2659,7 +2658,7 @@ export default function HomePage() {
         lastSyncedRef.current = next;
         syncUserConfig(userIdRef.current, false, payload, false);
       }
-    }, 1000 * 1); // 往云端同步的防抖时间
+    }, 1000 * 2); // 往云端同步的防抖时间
   }, []);
 
   const storageHelper = useMemo(() => {
