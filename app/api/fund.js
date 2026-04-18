@@ -1189,46 +1189,22 @@ export const fetchFundHistory = async (code, range = '1m') => {
   return [];
 };
 
-const API_KEYS = [
-  'sk-fd23ed5dde23c9238c08451fd186fd54',
-  'sk-74fe5b556be4d41afa0f5689d05e0493'
-  // 添加更多 API Key 到这里
-];
-
-// 随机从数组中选择一个 API Key
-const getRandomApiKey = () => {
-  if (!API_KEYS.length) return null;
-  return API_KEYS[Math.floor(Math.random() * API_KEYS.length)];
-};
-
 export const parseFundTextWithLLM = async (text) => {
-  const apiKey = getRandomApiKey();
-  if (!apiKey || !text) return null;
+  if (!text) return null;
+  if (!isSupabaseConfigured) return null;
+  if (!supabase?.functions?.invoke) return null;
 
   try {
-    const response = await fetch('https://apis.iflow.cn/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${apiKey}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({
-        model: 'qwen3-max',
-        messages: [
-          { role: 'system', content: "你是一个基金文本解析助手。请从提供的OCR文本中执行以下任务：\n抽取所有基金信息，包括：基金名称：中文字符串（可含英文或括号），名称后常跟随金额数字。基金代码：6位数字（如果存在）。持有金额：数字格式（可能含千分位逗号或小数，如果存在）。持有收益：数字格式（可能含千分位逗号或小数，如果存在）。忽略无关文本。输出格式：以JSON数组形式返回结果，每个基金信息为一个对象，包含以下字段：基金名称（必填，字符串）基金代码（可选，字符串，不存在时为空字符串）持有金额（可选，字符串，不存在时为空字符串）持有收益（可选，字符串，不存在时为空字符串）示例输出：[{'fundName':'华夏成长混合','fundCode':'000001','holdAmounts':'50,000.00','holdGains':'2,500.00'},{'fundName':'易方达消费行业','fundCode':'','holdAmounts':'10,000.00','holdGains':'}]。除了示例输出的内容外，不要输出任何多余内容"},
-          { role: 'user', content: text }
-        ],
-        temperature: 0.3,
-        max_tokens: 2000
-      })
+    const { data, error } = await supabase.functions.invoke('analyze-fund', {
+      body: { text }
     });
 
-    if (!response.ok) {
-      return null;
-    }
+    if (error) return null;
+    if (!data || data.success !== true) return null;
+    if (!Array.isArray(data.data)) return null;
 
-    const data = await response.json();
-    return data?.choices?.[0]?.message?.content || null;
+    // 保持与旧实现兼容：返回 JSON 字符串，由调用方 JSON.parse
+    return JSON.stringify(data.data);
   } catch (e) {
     return null;
   }

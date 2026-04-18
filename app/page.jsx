@@ -2180,6 +2180,10 @@ export default function HomePage() {
   const { resolveFundCodeByFuzzy } = useFundFuzzyMatcher();
 
   const handleScanClick = () => {
+    if (!user?.id) {
+      sonnerToast.error('该功能需登录后使用');
+      return;
+    }
     setScanModalOpen(true);
   };
 
