@@ -79,7 +79,6 @@ import { supabase, isSupabaseConfigured } from './lib/supabase';
 import { recordValuation, getAllValuationSeries, clearFund } from './lib/valuationTimeseries';
 import {
   DAILY_EARNINGS_SCOPE_ALL,
-  getAllDailyEarningsScoped,
   recordDailyEarnings,
   clearDailyEarnings,
   aggregatePortfolioDailyEarnings,
@@ -143,10 +142,13 @@ export default function HomePage() {
     pendingTrades, setPendingTrades,
     transactions, setTransactions,
     dcaPlans, setDcaPlans,
+    customSettings, setCustomSettings,
+    fundDailyEarnings, setFundDailyEarnings,
     initCollapsed, initRefreshMs,
     initHoldings, initGroupHoldings,
     initPendingTrades, initTransactions,
-    initDcaPlans
+    initDcaPlans, initCustomSettings,
+    initFundDailyEarnings
   } = useStorageStore();
   /** 基金标签（独立 localStorage 键 `tags`）：{ id, name, theme, fundCodes: string[] }[] */
   const [fundTagRecords, setFundTagRecords] = useState([]);
@@ -195,7 +197,7 @@ export default function HomePage() {
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const parsed = storageStore.getItem('customSettings');
+      const parsed = customSettings;
       if (!parsed) return;
       const w = parsed?.pcContainerWidth;
       const num = Number(w);
@@ -214,9 +216,6 @@ export default function HomePage() {
 
   // 估值分时序列（每次调用估值接口记录，用于分时图）
   const [valuationSeries, setValuationSeries] = useState(() => (typeof window !== 'undefined' ? getAllValuationSeries() : {}));
-  // 每日收益序列（按 scope 分桶：all + 自定义分组 id）
-  const [fundDailyEarnings, setFundDailyEarnings] = useState(() => (typeof window !== 'undefined' ? getAllDailyEarningsScoped() : {}));
-
   // 自选状态
   const [currentTab, setCurrentTab] = useState('all');
   const hasLocalTabInitRef = useRef(false);
@@ -257,7 +256,7 @@ export default function HomePage() {
       // 2）兼容旧版独立 localSortRules 字段
       let rulesFromSettings = null;
       try {
-        const parsed = storageStore.getItem('customSettings');
+        const parsed = customSettings;
         if (parsed) {
           if (Array.isArray(parsed.localSortRules)) {
             rulesFromSettings = parsed.localSortRules;
@@ -331,15 +330,13 @@ export default function HomePage() {
       storageStore.setItem('localSortBy', sortBy);
       storageStore.setItem('localSortOrder', sortOrder);
       try {
-        const parsed = storageStore.getItem('customSettings', {});
+        const parsed = customSettings || {};
         const next = {
           ...(parsed && typeof parsed === 'object' ? parsed : {}),
           localSortRules: sortRules,
           localSortDisplayMode: sortDisplayMode,
         };
-        storageStore.setItem('customSettings', JSON.stringify(next));
-        // 更新后标记 customSettings 脏并触发云端同步
-        triggerCustomSettingsSync();
+        setCustomSettings(next);
       } catch {
         // ignore
       }
@@ -3042,11 +3039,11 @@ export default function HomePage() {
       return nextP;
     });
     try {
-      const parsed = storageStore.getItem('customSettings', {});
+      const parsed = customSettings || {};
       if (parsed && typeof parsed === 'object' && parsed[id] !== undefined) {
-        delete parsed[id];
-        storageStore.setItem('customSettings', JSON.stringify(parsed));
-        triggerCustomSettingsSync();
+        const next = { ...parsed };
+        delete next[id];
+        setCustomSettings(next);
       }
     } catch { }
   };
@@ -3087,7 +3084,7 @@ export default function HomePage() {
         return nextP;
       });
       try {
-        const parsed = storageStore.getItem('customSettings', {});
+        const parsed = { ...(customSettings || {}) };
         if (parsed && typeof parsed === 'object') {
           let changed = false;
           removedIds.forEach((groupId) => {
@@ -3097,8 +3094,7 @@ export default function HomePage() {
             }
           });
           if (changed) {
-            storageStore.setItem('customSettings', JSON.stringify(parsed));
-            triggerCustomSettingsSync();
+            setCustomSettings(parsed);
           }
         }
       } catch { }
@@ -3127,7 +3123,6 @@ export default function HomePage() {
             changed = true;
           }
         });
-        if (changed) storageHelper.setItem('fundDailyEarnings', JSON.stringify(next));
         return changed ? next : prev;
       });
     }
@@ -3224,8 +3219,6 @@ export default function HomePage() {
           if (!changed) return prev;
           return { ...prev, [gid]: nextBucket };
         });
-        const raw = JSON.stringify(storageStore.getItem('fundDailyEarnings', {}));
-        storageHelper.setItem('fundDailyEarnings', raw);
       } catch { /* empty */ }
     }
 
@@ -3283,8 +3276,6 @@ export default function HomePage() {
         delete next[groupId][code];
         return next;
       });
-      const raw = JSON.stringify(storageStore.getItem('fundDailyEarnings', {}));
-      storageHelper.setItem('fundDailyEarnings', raw);
     } catch { /* empty */ }
 
     if (!silent) showToast('已从当前分组移除该基金', 'success');
@@ -3371,8 +3362,6 @@ export default function HomePage() {
         if (!changed) return prev;
         return { ...prev, [groupId]: nextBucket };
       });
-      const raw = JSON.stringify(storageStore.getItem('fundDailyEarnings', {}));
-      storageHelper.setItem('fundDailyEarnings', raw);
     } catch { /* empty */ }
   };
 
@@ -3466,6 +3455,8 @@ export default function HomePage() {
       initPendingTrades();
       initTransactions();
       initDcaPlans();
+      initCustomSettings();
+      initFundDailyEarnings();
       try {        // 已登录用户：不在此处调用 refreshAll，等 fetchCloudConfig 完成后由 applyCloudConfig 统一刷新        let shouldRefreshFromLocal = true;
         if (isSupabaseConfigured) {
           const { data, error } = await supabase.auth.getSession();
@@ -4264,10 +4255,6 @@ export default function HomePage() {
           if (changed) {
             nextScopedDailyMap[dailyEarningsScope] = nextDailyMap;
             setFundDailyEarnings(nextScopedDailyMap);
-            storageHelper.setItem(
-              'fundDailyEarnings',
-              JSON.stringify(storageStore.getItem('fundDailyEarnings', {})),
-            );
           }
         } catch (e) {
           console.warn('记录每日收益失败', e);
@@ -4595,7 +4582,6 @@ export default function HomePage() {
       }
       if (!changed) return prev;
       const next = { ...base, [fromKey]: fromBucket, [toKey]: toBucket };
-      storageHelper.setItem('fundDailyEarnings', JSON.stringify(next));
       return next;
     });
 
@@ -4744,8 +4730,6 @@ export default function HomePage() {
         });
         return changed ? next : prev;
       });
-      const raw = JSON.stringify(storageStore.getItem('fundDailyEarnings', {}));
-      storageHelper.setItem('fundDailyEarnings', raw);
     } catch { }
 
     // 同步删除该基金的定投计划（所有 scope）
@@ -4959,8 +4943,7 @@ export default function HomePage() {
           }
         });
         if (changed) {
-          const raw = JSON.stringify(storageStore.getItem('fundDailyEarnings', {}));
-          storageHelper.setItem('fundDailyEarnings', raw);
+          // storageHelper.setItem handled by setFundDailyEarnings
         }
         return changed ? next : prev;
       });
@@ -5032,24 +5015,23 @@ export default function HomePage() {
     const w = Math.min(2000, Math.max(600, Number(containerWidth) || 1200));
     setContainerWidth(w);
     try {
-      const parsed = storageStore.getItem('customSettings') || {};
+      const parsed = customSettings || {};
       if (targetIsMobile) {
         // 仅更新当前运行端对应的开关键
-        storageStore.setItem('customSettings', JSON.stringify({
+        setCustomSettings({
           ...parsed,
           pcContainerWidth: w,
           showMarketIndexMobile: nextShowMarketIndex,
           showGroupFundSearchMobile: nextShowGroupFundSearch,
-        }));
+        });
       } else {
-        storageStore.setItem('customSettings', JSON.stringify({
+        setCustomSettings({
           ...parsed,
           pcContainerWidth: w,
           showMarketIndexPc: nextShowMarketIndex,
           showGroupFundSearchPc: nextShowGroupFundSearch,
-        }));
+        });
       }
-      triggerCustomSettingsSync();
     } catch { }
     setSettingsOpen(false);
   };
@@ -5057,9 +5039,8 @@ export default function HomePage() {
   const handleResetContainerWidth = () => {
     setContainerWidth(1200);
     try {
-      const parsed = storageStore.getItem('customSettings') || {};
-      storageStore.setItem('customSettings', JSON.stringify({ ...parsed, pcContainerWidth: 1200 }));
-      triggerCustomSettingsSync();
+      const parsed = customSettings || {};
+      setCustomSettings({ ...parsed, pcContainerWidth: 1200 });
     } catch { }
   };
 
@@ -5339,43 +5320,46 @@ export default function HomePage() {
       const all = {};
       // 不包含 fundValuationTimeseries，该数据暂不同步到云端
       if (!keys || keys.has('funds')) {
-        all.funds = storageStore.getItem('funds', []);
+        all.funds = funds;
       }
       if (!keys || keys.has('favorites')) {
-        all.favorites = storageStore.getItem('favorites', []);
+        all.favorites = Array.from(favorites);
       }
       if (!keys || keys.has('groups')) {
-        all.groups = storageStore.getItem('groups', []);
+        all.groups = groups;
       }
       if (!keys || keys.has('collapsedCodes')) {
-        all.collapsedCodes = storageStore.getItem('collapsedCodes', []);
+        all.collapsedCodes = Array.from(collapsedCodes);
       }
       if (!keys || keys.has('collapsedTrends')) {
-        all.collapsedTrends = storageStore.getItem('collapsedTrends', []);
+        all.collapsedTrends = Array.from(collapsedTrends);
+      }
+      if (!keys || keys.has('collapsedEarnings')) {
+        all.collapsedEarnings = Array.from(collapsedEarnings);
       }
       if (!keys || keys.has('refreshMs')) {
-        all.refreshMs = storageStore.getItem('refreshMs', 30000);
+        all.refreshMs = refreshMs;
       }
       if (!keys || keys.has('holdings')) {
-        all.holdings = storageStore.getItem('holdings', {});
+        all.holdings = holdings;
       }
       if (!keys || keys.has('groupHoldings')) {
-        all.groupHoldings = storageStore.getItem('groupHoldings', {});
+        all.groupHoldings = groupHoldings;
       }
       if (!keys || keys.has('pendingTrades')) {
-        all.pendingTrades = storageStore.getItem('pendingTrades', []);
+        all.pendingTrades = pendingTrades;
       }
       if (!keys || keys.has('transactions')) {
-        all.transactions = storageStore.getItem('transactions', {});
+        all.transactions = transactions;
       }
       if (!keys || keys.has('dcaPlans')) {
-        all.dcaPlans = storageStore.getItem('dcaPlans', {});
+        all.dcaPlans = dcaPlans;
       }
       if (!keys || keys.has('customSettings')) {
-        all.customSettings = storageStore.getItem('customSettings', {});
+        all.customSettings = customSettings || {};
       }
       if (!keys || keys.has('fundDailyEarnings')) {
-        all.fundDailyEarnings = storageStore.getItem('fundDailyEarnings', {});
+        all.fundDailyEarnings = fundDailyEarnings;
       }
       if (!keys || keys.has('tags')) {
         all.tags = storageStore.getItem('tags', []);
@@ -5793,12 +5777,11 @@ export default function HomePage() {
         return acc;
       }, {});
       setFundDailyEarnings(nextFundDailyEarnings);
-      storageHelper.setItem('fundDailyEarnings', JSON.stringify(nextFundDailyEarnings));
 
       if (isPlainObject(cloudData.customSettings)) {
         try {
-          const merged = { ...storageStore.getItem('customSettings', {}), ...cloudData.customSettings };
-          storageStore.setItem('customSettings', JSON.stringify(merged));
+          const merged = { ...(customSettings || {}), ...cloudData.customSettings };
+          setCustomSettings(merged);
         } catch { }
       }
 
@@ -5967,22 +5950,22 @@ export default function HomePage() {
   const exportLocalData = async () => {
     try {
       const payload = {
-        funds: storageStore.getItem('funds', []),
+        funds,
         tags: storageStore.getItem('tags', []),
-        favorites: storageStore.getItem('favorites', []),
-        groups: storageStore.getItem('groups', []),
-        collapsedCodes: storageStore.getItem('collapsedCodes', []),
-        collapsedTrends: storageStore.getItem('collapsedTrends', []),
-        collapsedEarnings: storageStore.getItem('collapsedEarnings', []),
-        refreshMs: storageStore.getItem('refreshMs', 30000),
+        favorites: Array.from(favorites),
+        groups,
+        collapsedCodes: Array.from(collapsedCodes),
+        collapsedTrends: Array.from(collapsedTrends),
+        collapsedEarnings: Array.from(collapsedEarnings),
+        refreshMs,
         viewMode: storageStore.getItem('viewMode') === 'list' ? 'list' : 'card',
-        holdings: storageStore.getItem('holdings', {}),
-        groupHoldings: storageStore.getItem('groupHoldings', {}),
-        pendingTrades: storageStore.getItem('pendingTrades', []),
-        transactions: storageStore.getItem('transactions', {}),
-        dcaPlans: storageStore.getItem('dcaPlans', {}),
-        customSettings: storageStore.getItem('customSettings', {}),
-        fundDailyEarnings: storageStore.getItem('fundDailyEarnings', {}),
+        holdings,
+        groupHoldings,
+        pendingTrades,
+        transactions,
+        dcaPlans,
+        customSettings: customSettings || {},
+        fundDailyEarnings,
         exportedAt: nowInTz().toISOString()
       };
       const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
@@ -6192,13 +6175,12 @@ export default function HomePage() {
           }
         if (isPlainObject(data.customSettings)) {
           try {
-            const currentCustomSettings = storageStore.getItem('customSettings', {});
+            const currentCustomSettings = customSettings || {};
             const mergedSettings = {
               ...(isPlainObject(currentCustomSettings) ? currentCustomSettings : {}),
               ...data.customSettings,
             };
-            storageStore.setItem('customSettings', JSON.stringify(mergedSettings));
-            triggerCustomSettingsSync();
+            setCustomSettings(mergedSettings);
             if (mergedSettings.localSortRules && Array.isArray(mergedSettings.localSortRules)) {
               setSortRules(mergedSettings.localSortRules);
             }
@@ -6218,9 +6200,7 @@ export default function HomePage() {
         if (isPlainObject(data.fundDailyEarnings)) {
           try {
             const incomingScoped = normalizeFundDailyEarningsScoped(data.fundDailyEarnings);
-            const currentScoped = normalizeFundDailyEarningsScoped(
-              storageStore.getItem('fundDailyEarnings', {})
-            );
+            const currentScoped = normalizeFundDailyEarningsScoped(fundDailyEarnings);
             const mergedDaily = { ...currentScoped };
             Object.entries(incomingScoped).forEach(([scope, bucket]) => {
               if (!isPlainObject(bucket)) return;
@@ -6240,7 +6220,6 @@ export default function HomePage() {
               mergedDaily[scope] = mergedBucket;
             });
             setFundDailyEarnings(mergedDaily);
-            storageHelper.setItem('fundDailyEarnings', JSON.stringify(mergedDaily));
           } catch { }
         }
 
