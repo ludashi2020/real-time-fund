@@ -4720,12 +4720,12 @@ export default function HomePage() {
 
     // 同步删除自选状态
     setFavorites(prev => {
-      if (!prev.has(removeCode)) return prev;
+      if (!prev || !prev.has(removeCode)) return prev;
       const nextSet = new Set(prev);
       nextSet.delete(removeCode);
-      if (next.size === 0) setCurrentTab('all');
-      return next;
-      });
+      if (nextSet.size === 0 && currentTab === 'fav') setCurrentTab('all');
+      return nextSet;
+    });
 
     // 同步删除持仓数据
     setHoldings(prev => {
