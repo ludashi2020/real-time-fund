@@ -88,7 +88,7 @@ import {
 } from './lib/dailyEarnings';
 import { loadHolidaysForYears, isTradingDay as isDateTradingDay } from './lib/tradingCalendar';
 import { asyncPool } from './lib/asyncHelper';
-import { parseFundTextWithLLM, fetchFundData, fetchFundNetValueRange, fetchLatestRelease, fetchShanghaiIndexDate, fetchSmartFundNetValue, searchFunds } from './api/fund';
+import { parseFundTextWithLLM, fetchFundData, fetchFundNetValueRange, fetchLatestRelease, fetchShanghaiIndexDate, fetchSmartFundNetValue, searchFunds, fetchFundPeriodReturns } from './api/fund';
 import packageJson from '../package.json';
 import PcFundTable from './components/PcFundTable';
 import MobileFundTable from './components/MobileFundTable';
@@ -235,7 +235,15 @@ export default function HomePage() {
     // 持仓金额排序：默认隐藏
     { id: 'holdingAmount', label: '持仓金额', enabled: false },
     { id: 'todayProfit', label: '当日收益', enabled: false },
+    { id: 'yesterdayProfit', label: '昨日收益', enabled: false },
+    { id: 'holdingDays', label: '持有天数', enabled: false },
     { id: 'holding', label: '持有收益', enabled: true },
+    { id: 'holdingCost', label: '持仓成本', enabled: false },
+    { id: 'last1Week', label: '近1周', enabled: false },
+    { id: 'last1Month', label: '近1月', enabled: false },
+    { id: 'last3Months', label: '近3月', enabled: false },
+    { id: 'last6Months', label: '近6月', enabled: false },
+    { id: 'last1Year', label: '近1年', enabled: false },
     { id: 'name', label: '基金名称', alias: '名称', enabled: true },
   ];
   const SORT_DISPLAY_MODES = new Set(['buttons', 'dropdown']);
@@ -1284,6 +1292,60 @@ export default function HomePage() {
     });
   }, [funds, currentTab, favorites, activeGroupCodeSet]);
 
+  const [sortPeriodReturnsByCode, setSortPeriodReturnsByCode] = useState({});
+  const sortPeriodReturnsCacheRef = useRef(new Map());
+  const needsSortPeriodReturns = ['last1Week', 'last1Month', 'last3Months', 'last6Months', 'last1Year'].includes(sortBy);
+
+  useEffect(() => {
+    if (!needsSortPeriodReturns) return;
+    const codes = scopedFunds.map(f => f.code);
+    if (codes.length === 0) return;
+
+    let cancelled = false;
+    const missing = [];
+    const cachedBatch = {};
+
+    for (const code of codes) {
+      if (!sortPeriodReturnsCacheRef.current.has(code)) {
+        missing.push(code);
+      } else {
+        cachedBatch[code] = sortPeriodReturnsCacheRef.current.get(code);
+      }
+    }
+
+    if (Object.keys(cachedBatch).length > 0) {
+      setSortPeriodReturnsByCode((prev) => {
+        let changed = false;
+        const next = { ...prev };
+        for (const [code, value] of Object.entries(cachedBatch)) {
+          if (next[code] !== value) {
+            next[code] = value;
+            changed = true;
+          }
+        }
+        return changed ? next : prev;
+      });
+    }
+
+    if (missing.length === 0) return;
+
+    (async () => {
+      await asyncPool(4, missing, async (code) => {
+        const value = await fetchFundPeriodReturns(code);
+        sortPeriodReturnsCacheRef.current.set(code, value);
+        if (cancelled) return;
+        setSortPeriodReturnsByCode((prev) => {
+          if (prev[code] === value) return prev;
+          return { ...prev, [code]: value };
+        });
+      });
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [scopedFunds, needsSortPeriodReturns]);
+
   // 过滤和排序后的基金列表（包含“列表搜索”过滤）
   const displayFunds = useMemo(
     () => {
@@ -1386,8 +1448,73 @@ export default function HomePage() {
         if (sortBy === 'holding') {
           const pa = profitByCode?.get(a.code);
           const pb = profitByCode?.get(b.code);
-          const valA = pa?.profitTotal ?? Number.NEGATIVE_INFINITY;
-          const valB = pb?.profitTotal ?? Number.NEGATIVE_INFINITY;
+          const valA = pa?.profitTotal;
+          const valB = pb?.profitTotal;
+          const hasA = valA != null && Number.isFinite(valA);
+          const hasB = valB != null && Number.isFinite(valB);
+          if (!hasA && !hasB) return 0;
+          if (!hasA) return 1;
+          if (!hasB) return -1;
+          return sortOrder === 'asc' ? valA - valB : valB - valA;
+        }
+        if (sortBy === 'yesterdayProfit') {
+          const getYesterdayProfit = (code, jzrq) => {
+            const list = currentFundDailyEarnings?.[code];
+            if (!Array.isArray(list) || list.length === 0) return null;
+            let matchedDaily = null;
+            if (typeof jzrq === 'string') {
+              for (const item of list) {
+                if (item?.date === jzrq) {
+                  matchedDaily = item;
+                  break;
+                }
+              }
+            }
+            if (!matchedDaily) matchedDaily = list[list.length - 1];
+            return matchedDaily && Number.isFinite(Number(matchedDaily.earnings)) ? Number(matchedDaily.earnings) : null;
+          };
+          const valA = getYesterdayProfit(a.code, a.jzrq);
+          const valB = getYesterdayProfit(b.code, b.jzrq);
+          const hasA = valA != null && Number.isFinite(valA);
+          const hasB = valB != null && Number.isFinite(valB);
+          if (!hasA && !hasB) return 0;
+          if (!hasA) return 1;
+          if (!hasB) return -1;
+          return sortOrder === 'asc' ? valA - valB : valB - valA;
+        }
+        if (sortBy === 'holdingDays') {
+          const ha = holdingsForTabWithLinked[a.code];
+          const hb = holdingsForTabWithLinked[b.code];
+          const valA = ha?.firstPurchaseDate ? dayjs(todayStr).diff(dayjs(ha.firstPurchaseDate), 'day') : null;
+          const valB = hb?.firstPurchaseDate ? dayjs(todayStr).diff(dayjs(hb.firstPurchaseDate), 'day') : null;
+          const hasA = valA != null && Number.isFinite(valA);
+          const hasB = valB != null && Number.isFinite(valB);
+          if (!hasA && !hasB) return 0;
+          if (!hasA) return 1;
+          if (!hasB) return -1;
+          return sortOrder === 'asc' ? valA - valB : valB - valA;
+        }
+        if (sortBy === 'holdingCost') {
+          const getCost = (h) => h?.cost != null && h?.share != null && Number.isFinite(Number(h.cost)) && Number.isFinite(Number(h.share)) ? Number(h.cost) * Number(h.share) : null;
+          const valA = getCost(holdingsForTabWithLinked[a.code]);
+          const valB = getCost(holdingsForTabWithLinked[b.code]);
+          const hasA = valA != null && Number.isFinite(valA);
+          const hasB = valB != null && Number.isFinite(valB);
+          if (!hasA && !hasB) return 0;
+          if (!hasA) return 1;
+          if (!hasB) return -1;
+          return sortOrder === 'asc' ? valA - valB : valB - valA;
+        }
+        if (['last1Week', 'last1Month', 'last3Months', 'last6Months', 'last1Year'].includes(sortBy)) {
+          const keyMap = { last1Week: 'week', last1Month: 'month', last3Months: 'month3', last6Months: 'month6', last1Year: 'year1' };
+          const key = keyMap[sortBy];
+          const valA = sortPeriodReturnsByCode[a.code]?.[key];
+          const valB = sortPeriodReturnsByCode[b.code]?.[key];
+          const hasA = valA != null && Number.isFinite(valA);
+          const hasB = valB != null && Number.isFinite(valB);
+          if (!hasA && !hasB) return 0;
+          if (!hasA) return 1;
+          if (!hasB) return -1;
           return sortOrder === 'asc' ? valA - valB : valB - valA;
         }
         if (sortBy === 'name') {
@@ -1396,7 +1523,7 @@ export default function HomePage() {
         return 0;
       });
     },
-    [scopedFunds, currentTab, groups, sortBy, sortOrder, holdingsForTabWithLinked, getHoldingProfitForTab, groupFundSearchTerm, shouldShowGroupFundSearch],
+    [scopedFunds, currentTab, groups, sortBy, sortOrder, holdingsForTabWithLinked, getHoldingProfitForTab, groupFundSearchTerm, shouldShowGroupFundSearch, currentFundDailyEarnings, sortPeriodReturnsByCode, todayStr],
   );
 
   const latestDailyByCode = useMemo(() => {
