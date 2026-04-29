@@ -245,6 +245,7 @@ export default function HomePage() {
     { id: 'last3Months', label: '近3月', enabled: false },
     { id: 'last6Months', label: '近6月', enabled: false },
     { id: 'last1Year', label: '近1年', enabled: false },
+    { id: 'tags', label: '基金标签', enabled: false },
     { id: 'name', label: '基金名称', alias: '名称', enabled: true },
   ];
   const SORT_DISPLAY_MODES = new Set(['buttons', 'dropdown']);
@@ -1680,13 +1681,34 @@ export default function HomePage() {
           if (!hasB) return -1;
           return sortOrder === 'asc' ? valA - valB : valB - valA;
         }
+        if (sortBy === 'tags') {
+          const getTagKey = (fund) => {
+            const code = String(fund?.code ?? '').trim();
+            const list = code ? fundTagListsByCode?.[code] : null;
+            if (!Array.isArray(list) || list.length === 0) return '';
+            return list
+              .map((t) => (t?.name != null ? String(t.name).trim() : ''))
+              .filter(Boolean)
+              .join('、');
+          };
+          const keyA = getTagKey(a);
+          const keyB = getTagKey(b);
+          const hasA = !!keyA;
+          const hasB = !!keyB;
+          if (!hasA && !hasB) return 0;
+          if (!hasA) return 1;
+          if (!hasB) return -1;
+          return sortOrder === 'asc'
+            ? keyA.localeCompare(keyB, 'zh-CN')
+            : keyB.localeCompare(keyA, 'zh-CN');
+        }
         if (sortBy === 'name') {
           return sortOrder === 'asc' ? a.name.localeCompare(b.name, 'zh-CN') : b.name.localeCompare(a.name, 'zh-CN');
         }
         return 0;
       });
     },
-    [scopedFunds, currentTab, groups, sortBy, sortOrder, holdingsForTabWithLinked, getHoldingProfitForTab, groupFundSearchTerm, shouldShowGroupFundSearch, currentFundDailyEarnings, sortPeriodReturnsByCode, todayStr],
+    [scopedFunds, currentTab, groups, sortBy, sortOrder, holdingsForTabWithLinked, getHoldingProfitForTab, groupFundSearchTerm, shouldShowGroupFundSearch, currentFundDailyEarnings, sortPeriodReturnsByCode, todayStr, fundTagListsByCode],
   );
 
   const latestDailyByCode = useMemo(() => {

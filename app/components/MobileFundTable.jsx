@@ -2120,6 +2120,7 @@ export default function MobileFundTable({
           // 匹配排序状态
           const sortMap = {
             'fundName': 'name',
+            'tags': 'tags',
             'yesterdayChangePercent': 'yesterdayIncrease',
             'estimateChangePercent': 'yield',
             'totalChangePercent': 'estimateProfit',

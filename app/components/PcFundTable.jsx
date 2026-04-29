@@ -1872,6 +1872,7 @@ export default function PcFundTable({
           const colId = header.column.id || header.column.columnDef?.accessorKey;
           const sortMap = {
             'fundName': 'name',
+            'tags': 'tags',
             'yesterdayChangePercent': 'yesterdayIncrease',
             'estimateChangePercent': 'yield',
             'totalChangePercent': 'estimateProfit',
