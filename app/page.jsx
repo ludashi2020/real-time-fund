@@ -68,6 +68,7 @@ import TradeModal from "./components/TradeModal";
 import TransactionHistoryModal from "./components/TransactionHistoryModal";
 import AddHistoryModal from "./components/AddHistoryModal";
 import UpdateChecker from "./components/UpdateChecker";
+import UserMenu from "./components/UserMenu";
 import RefreshButton from "./components/RefreshButton";
 import WeChatModal from "./components/WeChatModal";
 import DcaModal from "./components/DcaModal";
@@ -421,7 +422,6 @@ export default function HomePage() {
       deviceIdRef.current = uuidv4();
     }
   }, []);
-  const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [loginModalOpen, setLoginModalOpen] = useState(false);
   const [loginInitialError, setLoginInitialError] = useState('');
 
@@ -560,7 +560,7 @@ export default function HomePage() {
 
   const [isMobile, setIsMobile] = useState(false);
   const [hoveredPcRowCode, setHoveredPcRowCode] = useState(null); // PC 列表行悬浮高亮
-  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
+  const [isLogoutConfirmOpen, setIsLogoutConfirmOpen] = useState(false);
   useEffect(() => {
     if (typeof window !== 'undefined') {
       const checkMobile = () => setIsMobile(window.innerWidth <= 640);
@@ -2506,7 +2506,6 @@ export default function HomePage() {
   // 定投计划自动生成买入队列的逻辑会在 storageHelper 定义之后实现
 
   const handleOpenLogin = () => {
-    setUserMenuOpen(false);
     if (!isSupabaseConfigured) {
       showToast('未配置 Supabase，无法登录', 'error');
       return;
@@ -3995,12 +3994,10 @@ export default function HomePage() {
   useEffect(() => {
     if (!isSupabaseConfigured) {
       clearAuthUser();
-      setUserMenuOpen(false);
       return;
     }
     const clearAuthState = () => {
       clearAuthUser();
-      setUserMenuOpen(false);
       skipSyncRef.current = false;
     };
 
@@ -4102,7 +4099,6 @@ export default function HomePage() {
     if (!isSupabaseConfigured) {
       setLoginModalOpen(false);
       setLoginInitialError('');
-      setUserMenuOpen(false);
       clearAuthUser();
       return;
     }
@@ -4139,24 +4135,9 @@ export default function HomePage() {
       } catch { }
       setLoginModalOpen(false);
       setLoginInitialError('');
-      setUserMenuOpen(false);
       clearAuthUser();
     }
   };
-
-  // 关闭用户菜单（点击外部时）
-  const userMenuRef = useRef(null);
-  useEffect(() => {
-    const handleClickOutside = (event) => {
-      if (userMenuRef.current && !userMenuRef.current.contains(event.target)) {
-        setUserMenuOpen(false);
-      }
-    };
-    if (userMenuOpen) {
-      document.addEventListener('mousedown', handleClickOutside);
-    }
-    return () => document.removeEventListener('mousedown', handleClickOutside);
-  }, [userMenuOpen]);
 
   const refreshCodesRef = useRef([]);
   useEffect(() => {
@@ -6699,7 +6680,7 @@ export default function HomePage() {
       groupModalOpen ||
       successModal.open ||
       cloudConfigModal.open ||
-      logoutConfirmOpen ||
+      isLogoutConfirmOpen ||
       holdingModal.open ||
       selectHoldingGroupModal.open ||
       actionModal.open ||
@@ -6732,7 +6713,7 @@ export default function HomePage() {
       groupModalOpen,
       successModal.open,
       cloudConfigModal.open,
-      logoutConfirmOpen,
+      isLogoutConfirmOpen,
       holdingModal.open,
       selectHoldingGroupModal.open,
       actionModal.open,
@@ -7188,15 +7169,6 @@ export default function HomePage() {
             fundsLength={funds.length}
             refreshCycleStartRef={refreshCycleStartRef}
           />
-          {/*<button*/}
-          {/*  className="icon-button"*/}
-          {/*  aria-label="打开设置"*/}
-          {/*  onClick={() => setSettingsOpen(true)}*/}
-          {/*  title="设置"*/}
-          {/*  hidden*/}
-          {/*>*/}
-          {/*  <SettingsIcon width="18" height="18" />*/}
-          {/*</button>*/}
           <button
             className="icon-button"
             aria-label={theme === 'dark' ? '切换到亮色主题' : '切换到暗色主题'}
@@ -7205,162 +7177,20 @@ export default function HomePage() {
           >
             {theme === 'dark' ? <SunIcon width="18" height="18" /> : <MoonIcon width="18" height="18" />}
           </button>
-          {/* 用户菜单 */}
-          <div className="user-menu-container" ref={userMenuRef}>
-            <button
-              className={`icon-button user-menu-trigger ${user ? 'logged-in' : ''}`}
-              aria-label={user ? '用户菜单' : '登录'}
-              onClick={() => setUserMenuOpen(!userMenuOpen)}
-              title={user ? (user.email || '用户') : '用户菜单'}
-            >
-              {user ? (
-                <div className="user-avatar-small">
-                  {userAvatar ? (
-                    <Image
-                      src={userAvatar}
-                      alt="用户头像"
-                      width={20}
-                      height={20}
-                      unoptimized
-                      style={{ borderRadius: '50%' }}
-                    />
-                  ) : (
-                    (user.email?.charAt(0).toUpperCase() || 'U')
-                  )}
-                </div>
-              ) : (
-                <UserIcon width="18" height="18" />
-              )}
-            </button>
-
-            <AnimatePresence>
-              {userMenuOpen && (
-                <motion.div
-                  className="user-menu-dropdown glass"
-                  initial={{ opacity: 0, y: -10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: -10, scale: 0.95 }}
-                  transition={{ duration: 0.15 }}
-                  style={{ transformOrigin: 'top right', top: navbarHeight + (isMobile ? -20 : 10) }}
-                >
-                  {user ? (
-                    <>
-                      <div className="user-menu-header">
-                        <div className="user-avatar-large">
-                          {userAvatar ? (
-                            <Image
-                              src={userAvatar}
-                              alt="用户头像"
-                              width={40}
-                              height={40}
-                              unoptimized
-                              style={{ borderRadius: '50%' }}
-                            />
-                          ) : (
-                            (user.email?.charAt(0).toUpperCase() || 'U')
-                          )}
-                        </div>
-                        <div className="user-info">
-                          <span className="user-email">{user.email}</span>
-                          <span className="user-status">已登录</span>
-                          {lastSyncTime && (
-                            <span className="muted" style={{ fontSize: '10px', marginTop: 2 }}>
-                              同步于 {dayjs(lastSyncTime).format('MM-DD HH:mm')}
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="user-menu-divider" />
-                      {!isMobile && (
-                        <button
-                          className="user-menu-item"
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            setPortfolioEarningsOpen(true);
-                          }}
-                        >
-                          <CalendarIcon width="16" height="16" />
-                          <span>我的收益</span>
-                        </button>
-                      )}
-                      <button
-                        className="user-menu-item"
-                        disabled={isSyncing}
-                        onClick={async () => {
-                          setUserMenuOpen(false);
-                          if (user?.id) await syncUserConfig(user.id);
-                        }}
-                        title="手动同步配置到云端"
-                      >
-                        {isSyncing ? (
-                          <span className="loading-spinner" style={{ width: 16, height: 16, border: '2px solid var(--muted)', borderTopColor: 'var(--primary)', borderRadius: '50%', animation: 'spin 1s linear infinite', flexShrink: 0 }} />
-                        ) : (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
-                            <path d="M4 14.899A7 7 0 1 1 15.71 8h1.79a4.5 4.5 0 0 1 2.5 8.242" stroke="var(--primary)" />
-                            <path d="M12 12v9" stroke="var(--accent)" />
-                            <path d="m16 16-4-4-4 4" stroke="var(--accent)" />
-                          </svg>
-                        )}
-                        <span>{isSyncing ? '同步中...' : '同步'}</span>
-                      </button>
-                      <button
-                        className="user-menu-item"
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          setSettingsOpen(true);
-                        }}
-                      >
-                        <SettingsIcon width="16" height="16" />
-                        <span>设置</span>
-                      </button>
-                      <button
-                        className="user-menu-item danger"
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          setLogoutConfirmOpen(true);
-                        }}
-                      >
-                        <LogoutIcon width="16" height="16" />
-                        <span>登出</span>
-                      </button>
-                    </>
-                  ) : (
-                    <>
-                      <button
-                        className="user-menu-item"
-                        onClick={handleOpenLogin}
-                      >
-                        <LoginIcon width="16" height="16" />
-                        <span>登录</span>
-                      </button>
-                      {!isMobile && (
-                        <button
-                          className="user-menu-item"
-                          onClick={() => {
-                            setUserMenuOpen(false);
-                            setPortfolioEarningsOpen(true);
-                          }}
-                        >
-                          <CalendarIcon width="16" height="16" />
-                          <span>我的收益</span>
-                        </button>
-                      )}
-                      <button
-                        className="user-menu-item"
-                        onClick={() => {
-                          setUserMenuOpen(false);
-                          setSettingsOpen(true);
-                        }}
-                      >
-                        <SettingsIcon width="16" height="16" />
-                        <span>设置</span>
-                      </button>
-                    </>
-                  )}
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+          <UserMenu
+            user={user}
+            userAvatar={userAvatar}
+            isMobile={isMobile}
+            navbarHeight={navbarHeight}
+            lastSyncTime={lastSyncTime}
+            isSyncing={isSyncing}
+            onSync={() => user?.id && syncUserConfig(user.id)}
+            onOpenSettings={() => setSettingsOpen(true)}
+            onOpenPortfolioEarnings={() => setPortfolioEarningsOpen(true)}
+            onOpenLogin={handleOpenLogin}
+            onLogout={handleLogout}
+            onLogoutConfirmOpenChange={setIsLogoutConfirmOpen}
+          />
         </div>
       </div>
       {shouldShowMarketIndex && (
@@ -7958,22 +7788,6 @@ export default function HomePage() {
               setFundDeleteBulkConfirm(null);
             }}
             onCancel={() => setFundDeleteBulkConfirm(null)}
-          />
-        )}
-      </AnimatePresence>
-
-      <AnimatePresence>
-        {logoutConfirmOpen && (
-          <ConfirmModal
-            title="确认登出"
-            message="确定要退出当前账号吗？"
-            icon={<LogoutIcon width="20" height="20" className="shrink-0 text-[var(--danger)]" />}
-            confirmText="确认登出"
-            onConfirm={() => {
-              setLogoutConfirmOpen(false);
-              handleLogout();
-            }}
-            onCancel={() => setLogoutConfirmOpen(false)}
           />
         )}
       </AnimatePresence>
